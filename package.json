@@ -1,0 +1,15 @@
+{
+  "name": "dccdb",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npx tailwindcss -i src/base.css -o src/base.out.css"
+  },
+  "author": "",
+  "license": "GPL-3.0-or-later",
+  "description": "",
+  "devDependencies": {
+    "tailwindcss": "^3.4.10"
+  }
+}
