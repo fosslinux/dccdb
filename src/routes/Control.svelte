@@ -1,7 +1,7 @@
-<script>
+<script lang="ts">
     import Button from './ControlButton.svelte';
     
-    const buttons = [
+    const buttons: {text: string}[] = [
         {
             text: "hello",
         },
