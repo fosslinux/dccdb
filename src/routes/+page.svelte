@@ -1,10 +1,16 @@
 <script lang="ts">
-  import "../app.css";
+    import "../app.css";
+    import { setContext } from 'svelte';
+    import { page } from '$app/stores';
 
-  import Control from './Control.svelte';
-  import Code from './Code.svelte';
-  import Output from './Output.svelte';
-  import ExecState from './ExecState.svelte';
+    export let data;
+    setContext('code', data.code);
+    setContext('session', $page.url.searchParams.get('session'));
+
+    import Control from './Control.svelte';
+    import Code from './Code.svelte';
+    import Output from './Output.svelte';
+    import ExecState from './ExecState.svelte';
 </script>
 
 <div class="grid grid-cols-11 grid-rows-10 gap-1 bg-fuchsia-950 h-screen w-screen text-white text-sm overflow-hidden">
