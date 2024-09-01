@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { io } from 'socket.io-client';
-    import { getContext } from 'svelte';
+    import { getContext, onMount } from 'svelte';
     import { Xterm, type Terminal, type ITerminalOptions } from '@battlefieldduck/xterm-svelte';
+    import { io, type Socket } from 'socket.io-client';
     import { page } from '$app/stores';
 
     let terminal: Terminal;
@@ -15,26 +15,32 @@
         terminal = event.detail.terminal;
     }
 
-    const session = getContext("session");
+    let socket: Socket;
+    onMount(() => {
+        socket = io(`ws://${$page.url.host}?session=${session}`);
+    });
 
-    const socket = io(`ws://${$page.url.host}?session=${session}`);
-    socket.on('process', (message) => {
-        const data = JSON.parse(message);
-        switch (data.action) {
-            case "stdout":
-                terminal?.write(data.data.replace(/\n/g, "\r\n"));
-                break;
-            case "end":
-                terminal?.write(`Exited with code ${data.code}\r\n`);
-                options.disableStdin = true;
-                break;
-            default:
-                console.error(`Unknown action ${data.action}`);
-        }
+    const session: string = getContext("session");
+
+    onMount(() => {
+        socket.on('process', (message: string) => {
+            console.log(message);
+            const data = JSON.parse(message);
+            switch (data.action) {
+                case "stdout":
+                    terminal?.write(data.data.replace(/\n/g, "\r\n"));
+                    break;
+                case "end":
+                    terminal?.write(`Exited with code ${data.code}\r\n`);
+                    options.disableStdin = true;
+                    break;
+                default:
+                    console.error(`Unknown action ${data.action}`);
+            }
+        });
     });
 
     async function onData(event: CustomEvent<string>) {
-        console.log("hellooo");
         socket.emit("process", JSON.stringify({
             session: session,
             action: "stdin",

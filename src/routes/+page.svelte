@@ -1,11 +1,13 @@
 <script lang="ts">
     import "../app.css";
-    import { setContext } from 'svelte';
+    import { setContext, onMount } from 'svelte';
     import { page } from '$app/stores';
+    import { io, type Socket } from 'socket.io-client';
 
     export let data;
+    const session = $page.url.searchParams.get('session');
     setContext('code', data.code);
-    setContext('session', $page.url.searchParams.get('session'));
+    setContext('session', session);
 
     import Control from './Control.svelte';
     import Code from './Code.svelte';
