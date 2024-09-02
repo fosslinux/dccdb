@@ -3,6 +3,13 @@ import tmp from 'tmp';
 import { mkfifoSync } from 'mkfifo';
 import { Mutex } from 'async-mutex';
 
+export type DebuggerState = {
+    location: {
+        file: string,
+        line: number,
+    },
+};
+
 export class Debugger {
     readonly _gdb: ChildProcess;
     readonly _mutex: Mutex;
@@ -15,6 +22,7 @@ export class Debugger {
     _curGdbData: string = "";
 
     readonly _finishedCallback: () => void;
+    stateCallback: (state: DebuggerState) => void = () => {};
 
     constructor(binary: string, finishedCallback: () => void) {
         this._queue = new Array();
@@ -24,7 +32,6 @@ export class Debugger {
         this._gdb.stdout?.on("data", (data: string) => {this._gdbOnData(data)});
         this._gdb.stderr?.on("data", (data: string) => {this._gdbOnData(data)});
         this._finishedCallback = finishedCallback;
-
     }
 
     async doGdbInit() {
@@ -45,7 +52,13 @@ export class Debugger {
         this.stdoutFifo = await convertToFifo(1);
         this.stderrFifo = await convertToFifo(2);
 
-        setTimeout(() => {this._runGdb("continue").then(() => {})}, 2000);
+        this.stateCallback(await this.getState());
+    }
+
+    async getState(): Promise<DebuggerState> {
+        return {
+            location: await this.currentLocation(),
+        }
     }
 
     async currentLocation(): Promise<{file: string, line: number}> {

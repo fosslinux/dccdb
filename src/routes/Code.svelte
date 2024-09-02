@@ -5,7 +5,7 @@
     import { getContext } from 'svelte';
 
     export const code = getContext('code');
-    let currentLine: number = 0;
+    export let location: {file: string, line: number} = {file: "", line: 1};
 </script>
 
 <svelte:head>
@@ -16,7 +16,7 @@
     <Highlight language={c} {code} let:highlighted>
         <LineNumbers
             {highlighted}
-            highlightedLines={[currentLine]}
+            highlightedLines={[location.line]}
             --highlighted-background="#15803d"
         />
     </Highlight>

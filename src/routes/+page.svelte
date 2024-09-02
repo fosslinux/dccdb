@@ -1,13 +1,23 @@
 <script lang="ts">
     import "../app.css";
-    import { setContext, onMount } from 'svelte';
+    import { setContext } from 'svelte';
     import { page } from '$app/stores';
-    import { io, type Socket } from 'socket.io-client';
+    import { source } from 'sveltekit-sse';
+    //import { type DebuggerState } from '$lib/debugger.ts';
 
     export let data;
     const session = $page.url.searchParams.get('session');
     setContext('code', data.code);
     setContext('session', session);
+
+    const state = source(`/api/debugger/${session}`).select("state").transform((data: string) => {
+        console.log(`data: ${data}`);
+        try {
+            return JSON.parse(data);
+        } catch {
+            return undefined;
+        }
+    });
 
     import Control from './Control.svelte';
     import Code from './Code.svelte';
@@ -17,7 +27,7 @@
 
 <div class="grid grid-cols-11 grid-rows-10 gap-1 bg-fuchsia-950 h-screen w-screen text-white text-sm overflow-hidden">
     <div class="row-span-10 rounded"><Control/></div>
-    <div class="col-span-5 row-span-10 rounded"><Code/></div>
+    <div class="col-span-5 row-span-10 rounded"><Code location={$state?.location}/></div>
     <div class="col-span-5 row-span-5 col-start-7 p-4 rounded"><Output/></div>
     <div class="col-span-5 row-span-5 col-start-7 row-start-6 rounded"><ExecState/></div>
 </div>

@@ -12,6 +12,7 @@ let processes: Map<string, Process> = new Map();
 export class Process {
     readonly _dcc_path: string;
     readonly _socket: socketio.Socket;
+    readonly _session: string;
     finished: boolean;
     debugger: Debugger | undefined = undefined;
     _stdinStream: net.Socket | undefined = undefined;
@@ -23,9 +24,10 @@ export class Process {
         }));
     }
 
-    constructor(socket: socketio.Socket) {
+    constructor(socket: socketio.Socket, session: string) {
         // Compile with dcc
         this._socket = socket;
+        this._session = session;
         this._dcc_path = tmp.tmpNameSync();
 
         const dcc_process = spawn("dcc", [
@@ -52,6 +54,8 @@ export class Process {
     _setupDebugger() {
         // https://github.com/nodejs/node/issues/23220#issuecomment-599117002
         this.debugger = new Debugger(this._dcc_path, this._finish);
+        debuggers.set(this._session, this.debugger);
+        console.log(debuggers);
         this.debugger.doGdbInit().then(() => {
             // no, stupid linter, this.debugger cannot be undefined
             fs.open(this.debugger.stdinFifo, fs.constants.O_RDWR | fs.constants.O_NONBLOCK, (_err, fd) => {
@@ -98,12 +102,8 @@ export function processSetup(socket: socketio.Socket) {
         return;
     }
 
-
-    const process = new Process(socket);
+    const process = new Process(socket, session);
     processes.set(session, process);
-    if (process.debugger) {
-        debuggers.set(session, process.debugger);
-    }
 }
 
 export function processHandler(message: string) {
