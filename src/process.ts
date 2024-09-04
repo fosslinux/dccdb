@@ -1,13 +1,11 @@
 import socketio from 'socket.io';
-import pty from 'node-pty';
-import { type IPty, type IDisposable } from 'node-pty';
 import tmp from 'tmp';
 import { spawn, type ChildProcess } from 'child_process';
-import { Debugger, debuggers } from './debugger.ts';
+import { Debugger, debuggers } from './debugger';
 import fs from 'node:fs';
 import net from 'node:net';
 
-let processes: Map<string, Process> = new Map();
+export const processes: Map<string, Process> = new Map();
 
 export class Process {
     readonly _dcc_path: string;
@@ -55,9 +53,10 @@ export class Process {
         // https://github.com/nodejs/node/issues/23220#issuecomment-599117002
         this.debugger = new Debugger(this._dcc_path, this._finish);
         debuggers.set(this._session, this.debugger);
-        console.log(debuggers);
         this.debugger.doGdbInit().then(() => {
             // no, stupid linter, this.debugger cannot be undefined
+            if (this.debugger === undefined) return;
+
             fs.open(this.debugger.stdinFifo, fs.constants.O_RDWR | fs.constants.O_NONBLOCK, (_err, fd) => {
                 this._stdinStream = new net.Socket({fd: fd, readable: false});
                 this._stdinStream.on("end", this._finish);

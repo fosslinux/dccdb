@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<head>
+    <title>dccdb</title>
+    <link rel="stylesheet" href="/dist/tailwind.css">
+    <link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css"></script>
+    <script src="/node_modules/@xterm/xterm/lib/xterm.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/c.min.js"></script>
+    <script src="/node_modules/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js"></script>
+    <script src="/node_modules/socket.io-client/dist/socket.io.js"></script>
+    <script>
+        const params = new URLSearchParams(document.location.search);
+        const session = params.get("session");
+    </script>
+    <script src="/dist/public/state.js"></script>
+    <script src="/dist/public/actions.js"></script>
+    <style>
+        .hljs-ln-line {
+            padding-left: 10px !important;
+        }
+
+        .hljs-ln-numbers {
+            position: relative;
+            padding-right: 10px;
+            border-right: 1px solid rgba(22 163 74 0.2);
+            text-align: right;
+            color: gray;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="grid grid-cols-11 grid-rows-10 gap-1 bg-fuchsia-950 h-screen w-screen text-white text-sm overflow-hidden">
+        <div class="row-span-10 rounded">
+            <div class="bg-purple-900 flex flex-col space-y-4">
+                <button class="px-6 py-3 bg-fuchsia-500 text-white rounded hover:bg-fuchsia-600 focus:outline-none" onclick="doNextLine()">Next Line</button>
+                <button class="px-6 py-3 bg-fuchsia-500 text-white rounded hover:bg-fuchsia-600 focus:outline-none" onclick="doPrevLine()">Previous Line</button>
+                <button class="px-6 py-3 bg-fuchsia-500 text-white rounded hover:bg-fuchsia-600 focus:outline-none" onclick="doCallFunction()">Call Function</button>
+            </div>
+        </div>
+    
+        <!-- code segment -->
+        <div class="col-span-5 row-span-10 rounded">
+            <div class="font-mono leading-7 h-full w-full overflow-y-scroll" style="background-color: #2b2b2b">
+                <pre>
+                    <code id="code" class="language-c"></code>
+                </pre>
+                <!--<Highlight language={c} {code} let:highlighted>
+                    <LineNumbers
+                {highlighted}
+                highlightedLines={[location.line]}
+                --highlighted-background="#15803d"
+            />
+                </Highlight>-->
+            </div>
+        </div>
+        <script>
+            fetch(`/api/${session}/code`).then((response) => {
+                response.json().then((data) => {
+                    document.getElementById("code").textContent = data;
+                    hljs.highlightAll();
+                    hljs.initLineNumbersOnLoad();
+                });
+            });
+        </script>
+
+        <div class="col-span-5 row-span-5 col-start-7 p-4 rounded">
+            <div id="terminal"></div>
+        </div>
+        <script>
+            var term = new Terminal({
+                theme: {
+                    background: "#2b2b2b",
+                },
+            });
+            term.open(document.getElementById("terminal"));
+    
+            let socket = io(`ws://${window.location.host}?session=${session}`);
+            socket.on("process", (message) => {
+                const data = JSON.parse(message);
+                console.log(data);
+                switch (data.action) {
+                    case "stdout":
+                        term.write(data.data.replace(/\n/g, "\r\n"));
+                        break;
+                    case "end":
+                        term.write(`Exited with code ${data.code}\r\n`);
+                        term.setOption("disableStdin", true);
+                        break;
+                    case "ready":
+                        createState();
+                        break;
+                }
+            });
+    
+            term.onData(event => {
+                socket.emit("process", JSON.stringify({
+                    session: session,
+                    action: "stdin",
+                    data: event.detail,
+                }));
+            });
+        </script>
+
+        <div class="col-span-5 row-span-5 col-start-7 row-start-6 rounded">
+            <div class="bg-fuchsia-900 grid grid-cols-6 grid-rows-1 w-full h-full">
+                <div class="col-span-1 row-span-1 flex justify-center items-start p-3">
+                    <table class="border border-gray-500 w-full"><tbody></tbody></table>
+                </div>
+            
+                <div class="col-span-3 col-start-2 row-start-1 row-span-1">
+                </div>
+            </div>
+        </div>
+    </div>
+</body>

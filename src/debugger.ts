@@ -11,9 +11,9 @@ export type DebuggerState = {
 };
 
 export class Debugger {
-    readonly _gdb: ChildProcess;
+    _gdb!: ChildProcess;
     readonly _mutex: Mutex;
-    readonly _queue: Array<(data: string) => void>;
+    _dataCallback!: ((data: string) => void) | undefined;
 
     stdoutFifo: string = "";
     stdinFifo: string = "";
@@ -21,17 +21,21 @@ export class Debugger {
 
     _curGdbData: string = "";
 
-    readonly _finishedCallback: () => void;
+    _finishedCallback!: () => void;
     stateCallback: (state: DebuggerState) => void = () => {};
 
     constructor(binary: string, finishedCallback: () => void) {
-        this._queue = new Array();
         this._mutex = new Mutex();
-
-        this._gdb = spawn("gdb", [binary]);
-        this._gdb.stdout?.on("data", (data: string) => {this._gdbOnData(data)});
-        this._gdb.stderr?.on("data", (data: string) => {this._gdbOnData(data)});
-        this._finishedCallback = finishedCallback;
+        this._mutex.acquire().then((release) => {
+            this._dataCallback = () => {
+                release();
+            };
+        }).finally(() => {
+            this._gdb = spawn("gdb", [binary]);
+            this._gdb.stdout?.on("data", (data: string) => {this._gdbOnData(data)});
+            this._gdb.stderr?.on("data", (data: string) => {this._gdbOnData(data)});
+            this._finishedCallback = finishedCallback;
+        });
     }
 
     async doGdbInit() {
@@ -45,14 +49,19 @@ export class Debugger {
             return filename;
         }
 
-        await this._runGdb("");
         await this._runGdb("break main");
         await this._runGdb("run");
         this.stdinFifo = await convertToFifo(0);
         this.stdoutFifo = await convertToFifo(1);
         this.stderrFifo = await convertToFifo(2);
+        // Also unbuffer outputs
+        for (const stream of ["stdout", "stderr"]) {
+            this.eval(`setvbuf((FILE *)${stream}, 0, 2, 0)`, "void");
+        }
+    }
 
-        this.stateCallback(await this.getState());
+    sendState() {
+        this.getState().then(state => this.stateCallback(state));
     }
 
     async getState(): Promise<DebuggerState> {
@@ -61,12 +70,24 @@ export class Debugger {
         }
     }
 
+    async nextLine() {
+        await this._runGdb("next");
+    }
+
+    async prevLine() {
+        await this._runGdb("reverse-next");
+    }
+
+    async callFunction() {
+        await this._runGdb("step");
+    }
+
     async currentLocation(): Promise<{file: string, line: number}> {
         //  XXX convert this to use Python API?
         const output: string = await this._runGdb("frame");
         const location = output.match(/.* at (.*):([0-9]*)/);
         if (location == null) return {file: "", line: -1};
-        return {file: location[0], line: Number(location[1])};
+        return {file: location[1], line: Number(location[2])};
     }
 
     async running(): Promise<boolean> {
@@ -87,13 +108,11 @@ export class Debugger {
         if (data.includes("(gdb) ")) {
             const fragments = data.split("(gdb) ");
             this._curGdbData += fragments.shift();
-            for (let fragment of fragments) {
-                const callback = this._queue.pop();
-                if (callback !== undefined) {
-                    callback(this._curGdbData);
-                }
-                this._curGdbData = fragment;
+            if (this._dataCallback !== undefined) {
+                this._dataCallback(this._curGdbData);
+                this._dataCallback = undefined;
             }
+            this._curGdbData = fragments[0];
         } else {
             this._curGdbData += data;
         }
@@ -101,19 +120,21 @@ export class Debugger {
 
     async _runGdb(command: string): Promise<string> {
         let promise: Promise<string> = Promise.resolve("");
+        console.log(`running gdb ${command}`);
         // the mutex is required to ensure that commands are actually executed in order
-        // (i think?)
+        // otherwise the queue might not actually match with the command
         const release = await this._mutex.acquire();
         this._gdb.stdin?.write(`${command}\n`);
         promise = new Promise((resolve) => {
             const callback = (data: string) => {
+                this._dataCallback = undefined;
+                release();
                 resolve(data);
             };
-            this._queue.push(callback);
-            release();
+            this._dataCallback = callback;
         });
         return promise;
     }
 }
 
-export let debuggers: Map<string, Debugger> = new Map();
+export const debuggers: Map<string, Debugger> = new Map();
