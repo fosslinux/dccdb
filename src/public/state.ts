@@ -16,9 +16,19 @@ class State {
         row.scrollIntoView({behavior: "smooth"});
     }
 
+    set atFuncCall(atFuncCall: boolean) {
+        const callFuncButton = document.getElementById("callFuncButton");
+        if (atFuncCall) {
+            callFuncButton?.removeAttribute("disabled");
+        } else {
+            callFuncButton?.setAttribute("disabled", "disabled");
+        }
+    }
+
     updateState(event: MessageEvent) {
         const obj = JSON.parse(event.data);
         this.line = obj.location.line;
+        this.atFuncCall = obj.atFuncCall;
     }
 }
 

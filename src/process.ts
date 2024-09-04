@@ -55,7 +55,7 @@ export class Process {
 
     _setupDebugger(logger: Logger) {
         // https://github.com/nodejs/node/issues/23220#issuecomment-599117002
-        this.debugger = new Debugger(this._dcc_path, this._finish, logger, this._session);
+        this.debugger = new Debugger(this._dcc_path, this._finish, logger, this._session, this._dcc_path);
         debuggers.set(this._session, this.debugger);
         this.debugger.doGdbInit().then(() => {
             // no, stupid linter, this.debugger cannot be undefined

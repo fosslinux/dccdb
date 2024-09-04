@@ -1,6 +1,6 @@
 import express, { type Response } from "express";
 import { debuggers, type DebuggerState } from "./debugger";
-import { processes, processHandler, processSetup } from "./process";
+import { processHandler, processSetup } from "./process";
 import { Server } from "socket.io";
 import http from "http";
 import fs from "node:fs";
@@ -17,7 +17,7 @@ app.get('/', (_, res: Response) => {
     res.sendFile(path.join(__dirname, "public/index.html"));
 });
 
-app.get("/api/:session/code", (_, res: Response) => {
+app.get("/api/:session/code", (req, res) => {
     fs.readFile("/tmp/test.c", "utf8", (_, data) => {
         res.json(data);
     });

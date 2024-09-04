@@ -3,12 +3,14 @@ import tmp from 'tmp';
 import { mkfifoSync } from 'mkfifo';
 import { Mutex } from 'async-mutex';
 import { type Logger } from 'pino';
+import { CAst } from './ast';
 
 export type DebuggerState = {
     location: {
         file: string,
         line: number,
     },
+    atFuncCall: boolean,
 };
 
 export class Debugger {
@@ -16,6 +18,8 @@ export class Debugger {
     readonly _mutex: Mutex;
     readonly _logger: Logger;
     readonly _session: string;
+    readonly _filename: string;
+    _ast!: CAst;
     _dataCallback!: ((data: string) => void) | undefined;
 
     stdoutFifo: string = "";
@@ -27,10 +31,18 @@ export class Debugger {
     _finishedCallback!: () => void;
     stateCallback: (state: DebuggerState) => void = () => {};
 
-    constructor(binary: string, finishedCallback: () => void, logger: Logger, session: string) {
+    constructor(binary: string, finishedCallback: () => void, logger: Logger, session: string, filename: string) {
         this._mutex = new Mutex();
         this._logger = logger;
         this._session = session;
+        this._filename = filename;
+
+        CAst.create("/tmp/test.c").then((ast: CAst | undefined) => {
+            if (ast !== undefined) {
+                this._ast = ast;
+            }
+        });
+
         this._mutex.acquire().then((release) => {
             this._dataCallback = () => {
                 release();
@@ -72,8 +84,10 @@ export class Debugger {
     }
 
     async getState(): Promise<DebuggerState> {
+        const location = await this.currentLocation();
         return {
-            location: await this.currentLocation(),
+            location: location,
+            atFuncCall: this._ast.lineHasFunction(location.line),
         }
     }
 
