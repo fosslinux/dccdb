@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import tmp from 'tmp';
 import { mkfifoSync } from 'mkfifo';
 import { Mutex } from 'async-mutex';
+import { type Logger } from 'pino';
 
 export type DebuggerState = {
     location: {
@@ -13,6 +14,8 @@ export type DebuggerState = {
 export class Debugger {
     _gdb!: ChildProcess;
     readonly _mutex: Mutex;
+    readonly _logger: Logger;
+    readonly _session: string;
     _dataCallback!: ((data: string) => void) | undefined;
 
     stdoutFifo: string = "";
@@ -24,8 +27,10 @@ export class Debugger {
     _finishedCallback!: () => void;
     stateCallback: (state: DebuggerState) => void = () => {};
 
-    constructor(binary: string, finishedCallback: () => void) {
+    constructor(binary: string, finishedCallback: () => void, logger: Logger, session: string) {
         this._mutex = new Mutex();
+        this._logger = logger;
+        this._session = session;
         this._mutex.acquire().then((release) => {
             this._dataCallback = () => {
                 release();
@@ -58,6 +63,8 @@ export class Debugger {
         for (const stream of ["stdout", "stderr"]) {
             this.eval(`setvbuf((FILE *)${stream}, 0, 2, 0)`, "void");
         }
+
+        this._logger.info(`${this._session}: finished gdb setup`);
     }
 
     sendState() {
@@ -120,7 +127,7 @@ export class Debugger {
 
     async _runGdb(command: string): Promise<string> {
         let promise: Promise<string> = Promise.resolve("");
-        console.log(`running gdb ${command}`);
+        this._logger.debug(`${this._session}: gdb: ${command}`);
         // the mutex is required to ensure that commands are actually executed in order
         // otherwise the queue might not actually match with the command
         const release = await this._mutex.acquire();

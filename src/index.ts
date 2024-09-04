@@ -5,6 +5,11 @@ import { Server } from "socket.io";
 import http from "http";
 import fs from "node:fs";
 import path from "path";
+import pino from "pino";
+
+const logger = pino({level: "trace"});
+
+logger.info("Starting");
 
 const app = express();
 
@@ -19,6 +24,7 @@ app.get("/api/:session/code", (_, res: Response) => {
 });
 
 app.get("/api/:session/state", (req, res) => {
+    logger.debug(`${req.params.session} opening state (SSE)`);
     res.set({
         "Cache-Control": "no-cache",
         "Content-Type": "text/event-stream",
@@ -41,7 +47,7 @@ app.get("/api/:session/state", (req, res) => {
 });
 
 app.post("/api/:session/debugger/:action", (req, res) => {
-    console.log(`${req.params.action} on ${req.params.session}`);
+    logger.debug(`${req.params.session}: ${req.params.action}`);
     const action = req.params.action;
     const dbg = debuggers.get(req.params.session);
     if (dbg === undefined) {
@@ -70,8 +76,9 @@ app.use("/node_modules", express.static("node_modules"));
 const server = http.createServer(app);
 const io = new Server(server);
 io.on("connection", (socket) => {
-    processSetup(socket);
+    processSetup(socket, logger.child({module: "foo"}));
     socket.on("process", processHandler);
 });
 
+logger.info("Listening");
 server.listen(3000);

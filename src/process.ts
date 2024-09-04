@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import { Debugger, debuggers } from './debugger';
 import fs from 'node:fs';
 import net from 'node:net';
+import { type Logger } from 'pino';
 
 export const processes: Map<string, Process> = new Map();
 
@@ -11,22 +12,25 @@ export class Process {
     readonly _dcc_path: string;
     readonly _socket: socketio.Socket;
     readonly _session: string;
+    readonly _logger: Logger;
     finished: boolean;
     debugger: Debugger | undefined = undefined;
     _stdinStream: net.Socket | undefined = undefined;
 
     _writeData(data: string) {
+        this._logger.trace(`${this._session}: writing data: ${data}`);
         this._socket.emit("process", JSON.stringify({
             action: "stdout",
             data: data,
         }));
     }
 
-    constructor(socket: socketio.Socket, session: string) {
+    constructor(socket: socketio.Socket, session: string, logger: Logger) {
         // Compile with dcc
         this._socket = socket;
         this._session = session;
         this._dcc_path = tmp.tmpNameSync();
+        this._logger = logger.child({module: "process"});
 
         const dcc_process = spawn("dcc", [
             "/tmp/test.c",
@@ -44,14 +48,14 @@ export class Process {
             if (code !== 0) {
                 this._finish();
             } else {
-                this._setupDebugger();
+                this._setupDebugger(logger.child({module: "debugger"}));
             }
         });
     }
 
-    _setupDebugger() {
+    _setupDebugger(logger: Logger) {
         // https://github.com/nodejs/node/issues/23220#issuecomment-599117002
-        this.debugger = new Debugger(this._dcc_path, this._finish);
+        this.debugger = new Debugger(this._dcc_path, this._finish, logger, this._session);
         debuggers.set(this._session, this.debugger);
         this.debugger.doGdbInit().then(() => {
             // no, stupid linter, this.debugger cannot be undefined
@@ -75,6 +79,8 @@ export class Process {
                 const socket = new net.Socket({fd});
                 socket.on("data", (data) => this._writeData(data.toString()));
             });
+
+            this._logger.debug(`${this._session}: process ready`);
         });
     }
 
@@ -94,14 +100,14 @@ export class Process {
     }
 }
 
-export function processSetup(socket: socketio.Socket) {
+export function processSetup(socket: socketio.Socket, logger: Logger) {
     const session = socket.handshake.query.session?.toString();
     if (session == undefined) {
         console.error("Invalid request to websocket");
         return;
     }
 
-    const process = new Process(socket, session);
+    const process = new Process(socket, session, logger);
     processes.set(session, process);
 }
 

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "watch:node": "nodemon src/index.ts",
+    "watch:node": "nodemon src/index.ts | pino-pretty",
     "watch:js": "tsc --watch --preserveWatchOutput -p src/public",
     "dev": "concurrently \"npm:watch:*\"",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -19,6 +19,7 @@
     "highlight.js": "^11.10.0",
     "highlightjs-line-numbers.js": "^2.8.0",
     "mkfifo": "^2.1.0",
+    "pino": "^9.4.0",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5",
     "tmp": "^0.2.3"
@@ -35,6 +36,7 @@
     "eslint-plugin-html": "^8.1.1",
     "globals": "^15.9.0",
     "nodemon": "^3.1.4",
+    "pino-pretty": "^11.2.2",
     "postcss": "^8.4.43",
     "tailwindcss": "^3.4.10",
     "ts-node": "^10.9.2",
