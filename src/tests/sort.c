@@ -1,5 +1,3 @@
-
-
 // C Program to Sort an Array in Ascending Order using
 // Selection Sort
 #include <stdio.h>

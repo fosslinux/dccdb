@@ -5,13 +5,15 @@ export class CAst {
     ast: any;
     readonly _inputs: Array<string> = new Array();
 
-    constructor(ast: object, filename: string) {
+    constructor(ast: object, filename: string, runTransforms: boolean = true) {
         this.ast = ast;
         this._inputs = [filename];
-        this._runTransforms();
+        if (runTransforms) {
+            this._runTransforms();
+        }
     }
 
-    static async create(filename: string) {
+    static async create(filename: string): Promise<CAst | undefined> {
         const clang = spawn("clang", ["-Xclang", "-ast-dump=json", "-fsyntax-only", filename]);
         let json: string = "";
         clang.stdout?.on("data", (data) => {
@@ -20,8 +22,8 @@ export class CAst {
         let ast: CAst | undefined = undefined;
         await new Promise((resolve) => {
             clang.on("exit", (_code) => {
-                resolve(0);
                 ast = new CAst(JSON.parse(json), filename);
+                resolve(0);
             });
         });
         return ast;
@@ -29,8 +31,24 @@ export class CAst {
 
     _runTransforms() {
         // Remove all not from input files
+        this._expansionLocify(this.ast);
         this.ast = this._pruneAst(this.ast);
         this._fillLocAst(this.ast, undefined, undefined);
+    }
+
+    _expansionLocify(ast: any) {
+        if (Object.hasOwn(ast, "loc") &&
+            Object.hasOwn(ast.loc, "expansionLoc")) {
+            for (const [key, value] of Object.entries(ast.loc.expansionLoc)) {
+                ast.loc[key] = value;
+            }
+        }
+
+        if (Object.hasOwn(ast, "inner")) {
+            for (const node of ast.inner) {
+                this._expansionLocify(node);
+            }
+        }
     }
 
     _pruneAst(ast: any) {
@@ -41,8 +59,7 @@ export class CAst {
         } else if (Object.hasOwn(ast, "loc") &&
                    !Object.hasOwn(ast.loc, "file") &&
                    Object.hasOwn(ast.loc, "includedFrom") &&
-                   Object.hasOwn(ast.loc.includedFrom, "file") &&
-                   !this._inputs.includes(ast.loc.includedFrom.file)) {
+                   Object.hasOwn(ast.loc.includedFrom, "file")) {
             return null;
         } else if (Object.hasOwn(ast, "isImplicit") && ast.isImplicit) {
             return null;
@@ -153,7 +170,7 @@ export class CAst {
 
     lineHasFunction(line: number): boolean {
         for (const func of this.functionCalls) {
-            if (func.loc.line === line) {
+            if (func.loc?.line === line) {
                 return true;
             }
         }
